@@ -172,3 +172,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+task_management/migrations/0*.py
+task_management/migrations/__pycache__/
+users/migrations/0*.py
+users/migrations/__pycache__/
+utils/__pycache__/
