@@ -1,12 +1,11 @@
-from rest_framework import status, serializers
-from rest_framework.views import APIView
-from rest_framework.response import Response
+import traceback
+from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.exceptions import InvalidToken, AuthenticationFailed
-
+from rest_framework_simplejwt.exceptions import InvalidToken
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from .models import User
 from utils.pagination import paginate
 from utils.common import BaseAPIView
@@ -21,11 +20,12 @@ class UserLoginAPIView(BaseAPIView, TokenObtainPairView):
         try:
             serializer.is_valid(raise_exception=True)
             return self._format_response(True, 'Login successful', serializer.validated_data)
-        except AuthenticationFailed:
-            return self._format_response(False, "Incorrect username or password", status_code=status.HTTP_400_BAD_REQUEST)
-        except InvalidToken:
+        except (AuthenticationFailed, ValidationError) as e:
+            return self._format_response(False, str(e), status_code=status.HTTP_400_BAD_REQUEST)
+        except InvalidToken as e:
             return self._format_response(False, "Invalid token", status_code=status.HTTP_400_BAD_REQUEST)
-        except Exception:
+        except Exception as e:
+            traceback.print_exc()
             return self._format_response(False, "An error occurred during login", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         
@@ -67,7 +67,6 @@ class UserAPIView(BaseAPIView):
 
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
-            print(f"request:{request.user.id}")
             new_user = serializer.save(parent_id=request.user)
             return self._format_response(True, "User created successfully", UserSerializer(new_user).data, status_code=status.HTTP_201_CREATED)
         return self._format_response(False, "Validation error", serializer.errors, status_code=status.HTTP_400_BAD_REQUEST)

@@ -27,7 +27,7 @@ class JWTAuthenticationMiddleware:
             return None
 
     def __call__(self, request):
-        if request.path.startswith('/admin/'):
+        if request.path.startswith('/admin'):
             return self.get_response(request)
 
         if request.path in self.unprotected_paths:

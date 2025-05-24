@@ -1,13 +1,13 @@
-from rest_framework.views import APIView
-from rest_framework import status, permissions
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from rest_framework import (status, permissions)
+from django.core.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 
-from django.db.models import Q
-from django.core.exceptions import PermissionDenied
 from .models import Task
-from .serializer import TaskSerializer
+from utils.common import BaseAPIView
 from utils.pagination import paginate
-from utils.common import CommonUtils, BaseAPIView
+from .serializer import TaskSerializer
 
 
 class IsSuperAdmin(permissions.BasePermission):
@@ -19,8 +19,6 @@ class IsAdmin(permissions.BasePermission):
         return request.user.is_authenticated and request.user.is_staff
 
 class TaskAPIView(BaseAPIView):
-    commonUtils = CommonUtils()
-
     def get_permissions(self):
         method = self.request.method
         if method == 'GET':
@@ -32,6 +30,11 @@ class TaskAPIView(BaseAPIView):
         elif method == 'DELETE':
             return [IsAuthenticated(), IsSuperAdmin()]
         return super().get_permissions()
+    
+    def get_object(self, pk):
+        queryset = self.get_queryset()
+        return get_object_or_404(queryset, pk=pk)
+    
 
     def get_queryset(self):
         user = self.request.user
@@ -79,7 +82,7 @@ class TaskAPIView(BaseAPIView):
 
     def patch(self, request, pk):
         try:
-            task = self.commonUtils.get_object(pk)
+            task = self.get_object(pk)
             self._validate_user_update_permissions(request.user, task, request.data)
 
             serializer = TaskSerializer(
@@ -103,7 +106,7 @@ class TaskAPIView(BaseAPIView):
 
     def delete(self, request, pk):
         try:
-            task = self.commonUtils.get_object(pk)
+            task = self.get_object(pk)
             task.delete()
             return self._format_response(
                 True,
