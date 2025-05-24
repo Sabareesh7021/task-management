@@ -27,7 +27,7 @@ SECRET_KEY = config.SECRET_KEY
 DEBUG = config.DEBUG
 
 ALLOWED_HOSTS = config.ALLOWED_HOSTS
-
+CORS_ALLOWED_ORIGINS = config.FRONTEND_URLS
 
 # Application definition
 
@@ -52,6 +52,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'users.middleware.JWTAuthenticationMiddleware',
 ]
