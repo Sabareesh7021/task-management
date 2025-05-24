@@ -12,7 +12,7 @@ class BaseAPIView(APIView):
         }
         if pagination:
             response_data['total_pages'] = pagination.get('total_pages')
-            response_data['total_items'] = pagination.get('count')
-            response_data['current_page'] = pagination.get('number')
+            response_data['count'] = pagination.get('count')
+            response_data['current_page'] = pagination.get('current_page')
 
         return Response(response_data, status=status_code)

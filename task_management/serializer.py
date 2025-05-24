@@ -37,22 +37,40 @@ class TaskSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
     
+    
     def validate(self, data):
         """
         Add custom validation for status transitions and worked hours
         """
         instance = self.instance
-        if instance:
-            # Validate status transitions
-            current_status = instance.status
-            new_status = data.get('status', current_status)
-            
-            if current_status == 'completed' and new_status != 'completed':
+        request = self.context.get('request')
+        
+        # For partial updates (PATCH), get existing values from instance
+        current_status = instance.status if instance else None
+        new_status = data.get('status', current_status)
+        
+        # Only validate user task limit if this is a status change to in_progress
+        if instance and request and new_status == 'in_progress':
+            self._validate_user_task_limit(request.user, data)
+        
+        # Validate status transitions
+        if instance and current_status == 'completed' and new_status != 'completed':
+            raise serializers.ValidationError(
+                "Cannot change status from completed to other statuses"
+            )
+        
+        # Only require completion report and worked hours if status is being set to completed
+        if new_status == 'completed':
+            if not data.get('completion_report', getattr(instance, 'completion_report', None)):
                 raise serializers.ValidationError(
-                    "Cannot change status from completed to other statuses"
+                    "Completion report is required to mark task as complete"
+                )
+            if data.get('worked_hours') is None and getattr(instance, 'worked_hours', None) is None:
+                raise serializers.ValidationError(
+                    "Worked hours are required to mark task as complete"
                 )
         
-        # Validate worked hours is positive
+        # Validate worked hours is positive if provided
         worked_hours = data.get('worked_hours')
         if worked_hours is not None and worked_hours < 0:
             raise serializers.ValidationError(

@@ -1,4 +1,5 @@
 import traceback
+from django.db.models import Q
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -45,6 +46,12 @@ class UserLogoutAPIView(BaseAPIView):
 
 class UserAPIView(BaseAPIView):
     def get(self, request, pk=None):
+        if pk:
+            user_instance = get_object_or_404(User, id=pk)
+            serializer   = UserSerializer(user_instance)
+            return self._format_response(True, data=serializer.data)
+        
+
         user = request.user
         if user.is_superuser:
             users = User.objects.exclude(id=user.id)
@@ -53,13 +60,14 @@ class UserAPIView(BaseAPIView):
         else:
             users = User.objects.filter(id=user.id)
 
-        if pk:
-            user_instance = get_object_or_404(users, id=pk)
-            serializer   = UserSerializer(user_instance)
-            return self._format_response(True, data=serializer.data)
+        if search := self.request.query_params.get('search'):
+            users = users.filter(
+                Q(username__icontains=search) | Q(email__icontains=search)
+            )
+        
         paginated_data = paginate(users, request)
         serializer     = UserSerializer(paginated_data['data'], many=True)
-        return self._format_response(True, serializer.data, status_code = status.HTTP_200_OK, pagination = paginated_data)
+        return self._format_response(True, data=serializer.data, status_code = status.HTTP_200_OK, pagination = paginated_data)
 
     def post(self, request):
         if not (request.user.is_staff or request.user.is_superuser):

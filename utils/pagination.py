@@ -4,8 +4,8 @@ from django.core.paginator import Paginator
 def paginate(queryset, request):
     """Paginates a queryset and returns paginated data with the paginator object."""
     queryset  = queryset.order_by('-created_at')
-    page      = request.GET.get('page', 1)
-    per_page  = request.GET.get('perPage', 10)
+    page      = int(request.GET.get('page', 1))
+    per_page  = int(request.GET.get('perPage', 10))
     paginator = Paginator(queryset, per_page)
     
     page = max(1, min(page, paginator.num_pages))

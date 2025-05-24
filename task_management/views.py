@@ -38,11 +38,25 @@ class TaskAPIView(BaseAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return Task.objects.all()
-        elif user.is_staff:
-            return Task.objects.filter(Q(assigned_to=user) | Q(assigned_by=user))
-        return Task.objects.filter(assigned_to=user)
+        status_param = self.request.query_params.get('status')
+        assigned_to  = self.request.query_params.get('assignedTo')
+        search       = self.request.query_params.get('search')
+
+        queryset = Task.objects.all() if user.is_superuser else (
+            Task.objects.filter(Q(assigned_to=user) | Q(assigned_by=user)) if user.is_staff else
+            Task.objects.filter(assigned_to=user)
+        )
+
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+        if assigned_to:
+            queryset = queryset.filter(assigned_to__id=assigned_to)
+        if search:
+            queryset = queryset.filter(
+                    Q(description__icontains=search) | Q(title__icontains=search)
+                )
+        return queryset
+
 
     def get(self, request, pk=None):
         try:
@@ -83,6 +97,13 @@ class TaskAPIView(BaseAPIView):
     def patch(self, request, pk):
         try:
             task = self.get_object(pk)
+            if request.data is None:
+                return self._format_response(
+                    False, 
+                    "No data provided for update", 
+                    None, 
+                    status.HTTP_400_BAD_REQUEST
+                )
             self._validate_user_update_permissions(request.user, task, request.data)
 
             serializer = TaskSerializer(
@@ -120,10 +141,71 @@ class TaskAPIView(BaseAPIView):
     def _validate_user_update_permissions(self, user, task, data):
         if user.is_staff or user.is_superuser:
             return
-
-        allowed_fields = {'status', 'completion_report', 'worked_hours'}
-        if not allowed_fields.issuperset(data.keys()):
-            raise PermissionDenied("You can only update status, completion report, and worked hours")
-
+        
         if task.assigned_to != user:
             raise PermissionDenied("You can only update tasks assigned to you")
+        
+
+class TaskManagementAPIView(BaseAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk=None):
+        """
+        Handle POST request to start a task
+        """
+        try:
+            task = Task.objects.get(pk=pk)
+            if task.assigned_to != request.user:
+                return self._format_response(
+                    False,
+                    "You can only start tasks assigned to you",
+                    None,
+                    status.HTTP_403_FORBIDDEN
+                )
+            
+            if task.status != 'pending':
+                return self._format_response(
+                    False,
+                    f"Task cannot be started from {task.status} status",
+                    None,
+                    status.HTTP_400_BAD_REQUEST
+                )
+        
+            active_tasks = Task.objects.filter(
+                assigned_to=request.user,
+                status='in_progress'
+            ).exclude(id=task.id)
+            
+            if active_tasks.exists():
+                return self._format_response(
+                    False,
+                    "You can only work on one task at a time. "
+                    "Please complete your current task before starting a new one.",
+                    None,
+                    status.HTTP_400_BAD_REQUEST
+                )
+            
+            task.status = 'in_progress'
+            task.save()
+            
+            serializer = TaskSerializer(task)
+            return self._format_response(
+                True,
+                "Task started successfully",
+                serializer.data
+            )
+            
+        except Task.DoesNotExist:
+            return self._format_response(
+                False,
+                "Task not found",
+                None,
+                status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return self._format_response(
+                False,
+                str(e),
+                None,
+                status.HTTP_400_BAD_REQUEST
+            )

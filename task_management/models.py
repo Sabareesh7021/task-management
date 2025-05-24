@@ -7,7 +7,8 @@ class Task(models.Model):
         ('pending', 'Pending'),
         ('in_rogress', 'In Progress'),
         ('completed', 'Completed'),
-        ('paused', 'Paused')
+        ('paused', 'Paused'),
+        ('overdue', 'Overdue'),
     ]
     
     title = models.CharField(max_length=200)

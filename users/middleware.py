@@ -12,8 +12,8 @@ class JWTAuthenticationMiddleware:
         self.jwt_user_authenticator = UserJWTAuthentication()
 
         self.unprotected_paths = [
-            '/auth/login',
-            '/auth/refresh-token',
+            '/auth/login/',
+            '/auth/refresh-token/',
             '/admin'
         ]
     
