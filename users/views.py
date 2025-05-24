@@ -8,60 +8,42 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import InvalidToken, AuthenticationFailed
 
 from .models import User
+from utils.pagination import paginate
+from utils.common import BaseAPIView
 from .serializer import UserTokenObtainPairSerializer, UserSerializer  
 
-class UserLoginAPIView(TokenObtainPairView):
+class UserLoginAPIView(BaseAPIView, TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = UserTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        
         try:
             serializer.is_valid(raise_exception=True)
-            token_data = serializer.validated_data
-            response_data = {
-                'status': True,
-                'message': 'Login successful',
-                'data': token_data
-            }
-            return Response(response_data, status=status.HTTP_200_OK)
+            return self._format_response(True, 'Login successful', serializer.validated_data)
+        except AuthenticationFailed:
+            return self._format_response(False, "Incorrect username or password", status_code=status.HTTP_400_BAD_REQUEST)
+        except InvalidToken:
+            return self._format_response(False, "Invalid token", status_code=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return self._format_response(False, "An error occurred during login", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        except AuthenticationFailed as e:
-            return Response({
-                "status": False,
-                "message": "Incorrect username or password"
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        except InvalidToken as e:
-            return Response({
-                "status": False,
-                "message": "Invalid token"
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        except Exception as e:
-            return Response({
-                "status": False,
-                "message": "An error occurred during login"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
-class UserLogoutAPIView(APIView):
+class UserLogoutAPIView(BaseAPIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         try:
             refresh_token = request.data["refresh"]
             token = RefreshToken(refresh_token)
             token.blacklist()
-
-            return Response({"detail": "Logout successful.", "status":True}, status=status.HTTP_205_RESET_CONTENT)
+            return self._format_response(True, "Logout successful", status_code=status.HTTP_205_RESET_CONTENT)
         except KeyError:
-            return Response({"error": "Refresh token is required.", "status":False}, status=status.HTTP_400_BAD_REQUEST)
+            return self._format_response(False, "Refresh token is required", status_code=status.HTTP_400_BAD_REQUEST)
         except TokenError:
-            return Response({"error": "Invalid or expired token.", "status":False}, status=status.HTTP_400_BAD_REQUEST)
+            return self._format_response(False, "Invalid or expired token", status_code=status.HTTP_400_BAD_REQUEST)
 
-
-class UserAPIView(APIView):
+class UserAPIView(BaseAPIView):
     def get(self, request, pk=None):
         user = request.user
         if user.is_superuser:
@@ -73,71 +55,40 @@ class UserAPIView(APIView):
 
         if pk:
             user_instance = get_object_or_404(users, id=pk)
-            serializer = UserSerializer(user_instance)
-        else:
-            serializer = UserSerializer(users, many=True)
-        
-        return Response({
-            "data": serializer.data,
-            "status": True
-        }, status=status.HTTP_200_OK)
+            serializer   = UserSerializer(user_instance)
+            return self._format_response(True, data=serializer.data)
+        paginated_data = paginate(users, request)
+        serializer     = UserSerializer(paginated_data['data'], many=True)
+        return self._format_response(True, serializer.data, status_code = status.HTTP_200_OK, pagination = paginated_data)
 
     def post(self, request):
         if not (request.user.is_staff or request.user.is_superuser):
-            return Response({
-                "error": "Only admins can create users",
-                "status": False
-            }, status=status.HTTP_403_FORBIDDEN)
-        
+            return self._format_response(False, "Only admins can create users", status_code=status.HTTP_403_FORBIDDEN)
+
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
-            new_user = serializer.save(created_by=request.user)
-            return Response({
-                "data": UserSerializer(new_user).data,
-                "status": True
-            }, status=status.HTTP_201_CREATED)
-        return Response({
-            "error": serializer.errors,
-            "status": False
-        }, status=status.HTTP_400_BAD_REQUEST)
+            print(f"request:{request.user.id}")
+            new_user = serializer.save(parent_id=request.user)
+            return self._format_response(True, "User created successfully", UserSerializer(new_user).data, status_code=status.HTTP_201_CREATED)
+        return self._format_response(False, "Validation error", serializer.errors, status_code=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
-        user = request.user
         user_instance = get_object_or_404(User, id=pk)
-
-        if not (user.is_superuser or 
-               (user.is_staff and user_instance.created_by == user) or 
-               user_instance == user):
-            return Response({
-                "error": "Permission denied",
-                "status": False
-            }, status=status.HTTP_403_FORBIDDEN)
+        user = request.user
+        if not (user.is_superuser or (user.is_staff and user_instance.created_by == user) or user_instance == user):
+            return self._format_response(False, "Permission denied", status_code=status.HTTP_403_FORBIDDEN)
 
         serializer = UserSerializer(user_instance, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({
-                "data": serializer.data,
-                "status": True
-            }, status=status.HTTP_200_OK)
-        return Response({
-            "error": serializer.errors,
-            "status": False
-        }, status=status.HTTP_400_BAD_REQUEST)
+            return self._format_response(True, "User updated successfully", serializer.data)
+        return self._format_response(False, "Validation error", serializer.errors, status_code=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        user = request.user
         user_instance = get_object_or_404(User, id=pk)
-
-        if not (user.is_superuser or 
-               (user.is_staff and user_instance.created_by == user)):
-            return Response({
-                "error": "Permission denied",
-                "status": False
-            }, status=status.HTTP_403_FORBIDDEN)
+        user = request.user
+        if not (user.is_superuser or (user.is_staff and user_instance.created_by == user)):
+            return self._format_response(False, "Permission denied", status_code=status.HTTP_403_FORBIDDEN)
 
         user_instance.delete()
-        return Response({
-            "message": "User deleted successfully",
-            "status": True
-        }, status=status.HTTP_200_OK)
+        return self._format_response(True, "User deleted successfully")

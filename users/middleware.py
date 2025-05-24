@@ -12,9 +12,9 @@ class JWTAuthenticationMiddleware:
         self.jwt_user_authenticator = UserJWTAuthentication()
 
         self.unprotected_paths = [
-            '/auth/login/',
-            '/auth/refresh-token/',
-            '/admin/'
+            '/auth/login',
+            '/auth/refresh-token',
+            '/admin'
         ]
     
     def decode_jwt(self, token):
