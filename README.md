@@ -46,7 +46,7 @@ A comprehensive Django-based REST API for task management with:
 ### Quick Start
 1. **Build and deploy**:
    ```bash
-   docker-compose build
+   docker  build -t image_name
    docker stack deploy -c docker-compose.yml task_stack
    ```
    or for non-swarm environments:
