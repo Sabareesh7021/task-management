@@ -12,6 +12,7 @@ DB_HOST : str    = os.getenv('DB_HOST')
 DB_PORT : str    = os.getenv('DB_PORT')
 DB_TYPE : str    = os.getenv('DB_TYPE', 'mysql')
 SECRET_KEY : str     = os.getenv('SECRET_KEY')
-ALLOWED_HOSTS: list  = [host.strip() for host in os.getenv('APP_URL', 'localhost').split(',')]
+
+ALLOWED_HOSTS: list  = os.getenv('APP_URL', '').split(',')
 FRONTEND_URLS: list  = os.getenv('FRONTEND_URLS', '').split(',')
 DEBUG : bool         = os.getenv('DEBUG')
