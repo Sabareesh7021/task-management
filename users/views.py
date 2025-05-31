@@ -60,6 +60,12 @@ class UserAPIView(BaseAPIView):
         else:
             users = User.objects.filter(id=user.id)
 
+        if role := self.request.query_params.get('role'):
+            if role.lower() == 'user':
+                users = users.filter(is_staff=False, is_superuser=False)
+            elif role.lower() == 'admin':
+                users = users.filter(is_staff=True)
+
         if search := self.request.query_params.get('search'):
             users = users.filter(
                 Q(username__icontains=search) | Q(email__icontains=search)
